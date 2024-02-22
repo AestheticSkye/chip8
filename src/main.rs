@@ -14,6 +14,8 @@ fn main() -> Result<()> {
 
     let mut chip = Chip8::new();
 
+    // chip.load_program(&program);
+
     chip.run(&mut ui)?;
 
     Ok(())

@@ -6,7 +6,6 @@ use crate::{HEIGHT, WIDTH};
 
 pub struct Ui {
     window: Window,
-    buffer: Vec<u32>,
 }
 
 impl Ui {
@@ -24,10 +23,7 @@ impl Ui {
         // Limit to max ~60 fps update rate
         window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
-        Self {
-            window,
-            buffer: vec![0; WIDTH * HEIGHT],
-        }
+        Self { window }
     }
 }
 
@@ -39,16 +35,12 @@ impl Draw for Ui {
             return Ok(());
         }
 
-        for (index, val) in buffer.iter().enumerate() {
-            if *val {
-                self.buffer[index] = u32::MAX;
-            } else {
-                self.buffer[index] = 0;
-            }
-        }
+        let buffer = buffer
+            .iter()
+            .map(|val| if *val { u32::MAX } else { 0 })
+            .collect::<Vec<u32>>();
 
-        self.window
-            .update_with_buffer(&self.buffer, WIDTH, HEIGHT)?;
+        self.window.update_with_buffer(&buffer, WIDTH, HEIGHT)?;
 
         Ok(())
     }

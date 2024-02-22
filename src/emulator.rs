@@ -3,7 +3,6 @@ mod instruction;
 
 use std::thread::sleep;
 use std::time::Duration;
-use std::usize;
 
 use anyhow::Result;
 use font::FONT;
@@ -51,6 +50,14 @@ impl Chip8 {
         }
     }
 
+    pub fn load_program(&mut self, program: &[u8]) {
+        for (instruction_index, memory_address_index) in
+            (0x200..(0x200 + program.len())).enumerate()
+        {
+            self.memory[memory_address_index] = program[instruction_index];
+        }
+    }
+
     pub fn run(&mut self, ui: &mut impl Draw) -> Result<()> {
         loop {
             let instruction_range =
@@ -66,6 +73,8 @@ impl Chip8 {
             let instruction = ((u16::from(bytes[0]) << 8) + u16::from(bytes[1])).try_into()?;
 
             self.run_instruction(instruction, ui);
+
+            self.program_counter += 2;
 
             // Run 700 instructions per second.
             sleep(Duration::from_micros(1428));
