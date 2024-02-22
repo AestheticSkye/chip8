@@ -30,12 +30,19 @@ pub struct Chip8 {
 }
 
 impl Chip8 {
-    pub fn new() -> Self {
+    pub fn new(executable: &[u8]) -> Self {
         let mut memory = [0; 4096];
 
         // Insert font into memory
         for (font_index, memory_index) in (0x050..=0x09F).enumerate() {
             memory[memory_index] = FONT[font_index];
+        }
+
+        // Load executable
+        for (instruction_index, memory_address_index) in
+            (0x200..(0x200 + executable.len())).enumerate()
+        {
+            memory[memory_address_index] = executable[instruction_index];
         }
 
         Self {
@@ -47,14 +54,6 @@ impl Chip8 {
             delay_timer: 0,
             sound_timer: 0,
             var_registers: [0; 16],
-        }
-    }
-
-    pub fn load_program(&mut self, program: &[u8]) {
-        for (instruction_index, memory_address_index) in
-            (0x200..(0x200 + program.len())).enumerate()
-        {
-            self.memory[memory_address_index] = program[instruction_index];
         }
     }
 
@@ -118,8 +117,4 @@ impl Chip8 {
         ui: &mut impl Draw,
     ) {
     }
-}
-
-impl Default for Chip8 {
-    fn default() -> Self { Self::new() }
 }
