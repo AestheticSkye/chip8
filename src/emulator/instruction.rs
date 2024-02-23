@@ -1,6 +1,5 @@
-use anyhow::{bail, Error};
+use anyhow::{bail, Ok};
 
-#[allow(unused)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Instruction {
     /// 00E0
@@ -11,10 +10,18 @@ pub enum Instruction {
     Goto(u16),
     /// 2NNN
     Subroutine(u16),
+    /// 3XNN
+    IsEqualVal { register: u8, value: u8 },
+    /// 4XNN
+    NotEqualVal { register: u8, value: u8 },
+    /// 5XY0
+    IsEqual { register_a: u8, register_b: u8 },
     /// 6XNN
     SetRegister { register: u8, value: u8 },
     /// 7XNN
     AddRegister { register: u8, value: u8 },
+    /// 9XY0
+    NotEqual { register_a: u8, register_b: u8 },
     /// ANNN
     SetIndexRegister(u16),
     /// DXYN
@@ -48,8 +55,50 @@ impl TryFrom<u16> for Instruction {
             return Ok(Self::Subroutine(value & 0x0FFF));
         }
 
+        if value & 0xF000 == 0x3000 {
+            return Ok(Self::IsEqualVal {
+                register: ((value >> 8) & 0xF) as u8,
+                value:    (value & 0xFF) as u8,
+            });
+        }
+
+        if value & 0xF000 == 0x4000 {
+            return Ok(Self::NotEqualVal {
+                register: ((value >> 8) & 0xF) as u8,
+                value:    (value & 0xFF) as u8,
+            });
+        }
+
+        if value & 0xF00F == 0x5000 {
+            return Ok(Self::IsEqual {
+                register_a: ((value >> 8) & 0xF) as u8,
+                register_b: ((value >> 4) & 0xF) as u8,
+            });
+        }
+
         if value & 0xF000 == 0xA000 {
             return Ok(Self::SetIndexRegister(value & 0x0FFF));
+        }
+
+        if value & 0xF000 == 0x6000 {
+            return Ok(Self::SetRegister {
+                register: ((value >> 8) & 0xF) as u8,
+                value:    (value & 0xFF) as u8,
+            });
+        }
+
+        if value & 0xF000 == 0x7000 {
+            return Ok(Self::AddRegister {
+                register: ((value >> 8) & 0xF) as u8,
+                value:    (value & 0xFF) as u8,
+            });
+        }
+
+        if value & 0xF00F == 0x9000 {
+            return Ok(Self::NotEqual {
+                register_a: ((value >> 8) & 0xF) as u8,
+                register_b: ((value >> 4) & 0xF) as u8,
+            });
         }
 
         if value & 0xF000 == 0xD000 {
@@ -71,7 +120,7 @@ impl TryFrom<u16> for Instruction {
             });
         }
 
-        bail!("Failed to parse instruction")
+        bail!("Failed to parse instruction: {:x}", value)
     }
 }
 
@@ -81,7 +130,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_parse_display_instruction() {
+    fn test_parse_display() {
         let val: u16 = 0xD654;
 
         let instruction: Instruction = val.try_into().unwrap();
@@ -97,11 +146,41 @@ mod test {
     }
 
     #[test]
-    fn test_parse_goto_instruction() {
+    fn test_parse_goto() {
         let val: u16 = 0x1736;
 
         let instruction: Instruction = val.try_into().unwrap();
 
         assert_eq!(instruction, Instruction::Goto(0x736));
+    }
+
+    #[test]
+    fn test_parse_set_register() {
+        let val: u16 = 0x6736;
+
+        let instruction: Instruction = val.try_into().unwrap();
+
+        assert_eq!(
+            instruction,
+            Instruction::SetRegister {
+                register: 0x7,
+                value:    0x36,
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_is_equal() {
+        let val: u16 = 0x5730;
+
+        let instruction: Instruction = val.try_into().unwrap();
+
+        assert_eq!(
+            instruction,
+            Instruction::IsEqual {
+                register_a: 0x7,
+                register_b: 0x3,
+            }
+        );
     }
 }

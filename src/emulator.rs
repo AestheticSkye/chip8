@@ -5,8 +5,8 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use anyhow::Result;
-use font::FONT;
 
+use self::font::FONT;
 use self::instruction::Instruction;
 use crate::draw::Draw;
 
@@ -22,6 +22,7 @@ pub struct Chip8 {
     memory:          [u8; 4096],
     display:         [bool; 64 * 32],
     stack:           [u16; STACK_SIZE],
+    stack_pointer:   usize,
     var_registers:   [u8; 16],
     program_counter: u16,
     index_register:  u16,
@@ -39,10 +40,8 @@ impl Chip8 {
         }
 
         // Load executable
-        for (instruction_index, memory_address_index) in
-            (0x200..(0x200 + executable.len())).enumerate()
-        {
-            memory[memory_address_index] = executable[instruction_index];
+        for (instruction_index, memory_index) in (0x200..(0x200 + executable.len())).enumerate() {
+            memory[memory_index] = executable[instruction_index];
         }
 
         Self {
@@ -51,6 +50,7 @@ impl Chip8 {
             program_counter: 0x200,
             index_register: 0,
             stack: [0; STACK_SIZE],
+            stack_pointer: 0,
             delay_timer: 0,
             sound_timer: 0,
             var_registers: [0; 16],
@@ -62,11 +62,7 @@ impl Chip8 {
             let instruction_range =
                 self.program_counter as usize..(self.program_counter + 2) as usize;
 
-            println!("{instruction_range:?}");
-
             let bytes = &self.memory[instruction_range];
-
-            println!("{bytes:?}");
 
             // Concatenate the two bytes together.
             let instruction = ((u16::from(bytes[0]) << 8) + u16::from(bytes[1])).try_into()?;
@@ -81,16 +77,57 @@ impl Chip8 {
     }
 
     fn run_instruction(&mut self, instruction: Instruction, ui: &mut impl Draw) {
+        println!("{instruction:?}");
+
         match instruction {
             Instruction::ClearScreen => self.display = BLANK_DISPLAY,
-            Instruction::Return => todo!(),
+            Instruction::Return => {
+                self.program_counter = self.stack[self.stack_pointer];
+                self.stack[self.stack_pointer] = 0;
+                self.stack_pointer -= 1;
+            }
             Instruction::Goto(address) => self.program_counter = address,
-            Instruction::Subroutine(_) => todo!(),
+            Instruction::Subroutine(address) => {
+                self.stack_pointer += 1;
+                self.stack[self.stack_pointer] = self.program_counter;
+                self.program_counter = address;
+            }
+            Instruction::IsEqualVal { register, value } => {
+                if self.var_registers[register as usize] == value {
+                    self.program_counter += 2;
+                }
+            }
+            Instruction::NotEqualVal { register, value } => {
+                if self.var_registers[register as usize] != value {
+                    self.program_counter += 2;
+                }
+            }
+            Instruction::IsEqual {
+                register_a,
+                register_b,
+            } => {
+                if self.var_registers[register_a as usize]
+                    == self.var_registers[register_b as usize]
+                {
+                    self.program_counter += 2;
+                }
+            }
             Instruction::SetRegister { register, value } => {
                 self.var_registers[register as usize] = value;
             }
             Instruction::AddRegister { register, value } => {
-                self.var_registers[register as usize] += value;
+                self.var_registers[register as usize] =
+                    self.var_registers[register as usize].wrapping_add(value);
+            }
+            Instruction::NotEqual {
+                register_a,
+                register_b,
+            } => {
+                if self.var_registers[register_a as usize]
+                    != self.var_registers[register_b as usize]
+                {
+                    self.program_counter += 2;
+                }
             }
             Instruction::SetIndexRegister(value) => self.index_register = value,
             Instruction::Display {
