@@ -73,11 +73,14 @@ impl Chip8 {
 
             self.run_instruction(instruction, ui)?;
 
+            // ui.draw(&self.display)?;
+
             // Run 700 instructions per second.
             sleep(Duration::from_micros(1428));
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn run_instruction(&mut self, instruction: Instruction, ui: &mut impl Draw) -> Result<()> {
         println!("{instruction:?}");
 
@@ -124,19 +127,27 @@ impl Chip8 {
             Instruction::Set {
                 register_a,
                 register_b,
-            } => todo!(),
+            } => {
+                self.var_registers[register_a as usize] = self.var_registers[register_b as usize];
+            }
             Instruction::Or {
                 register_a,
                 register_b,
-            } => todo!(),
+            } => {
+                self.var_registers[register_a as usize] |= self.var_registers[register_b as usize];
+            }
             Instruction::And {
                 register_a,
                 register_b,
-            } => todo!(),
+            } => {
+                self.var_registers[register_a as usize] &= self.var_registers[register_b as usize];
+            }
             Instruction::Xor {
                 register_a,
                 register_b,
-            } => todo!(),
+            } => {
+                self.var_registers[register_a as usize] ^= self.var_registers[register_b as usize];
+            }
             Instruction::Add {
                 register_a,
                 register_b,

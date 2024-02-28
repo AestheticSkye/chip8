@@ -56,6 +56,7 @@ pub enum Instruction {
 impl TryFrom<u16> for Instruction {
     type Error = anyhow::Error;
 
+    #[allow(clippy::too_many_lines)]
     fn try_from(value: u16) -> Result<Self, Self::Error> {
         if value == 0x00E0 {
             return Ok(Self::ClearScreen);
@@ -94,10 +95,6 @@ impl TryFrom<u16> for Instruction {
             });
         }
 
-        if value & 0xF000 == 0xA000 {
-            return Ok(Self::SetIndexRegister(value & 0x0FFF));
-        }
-
         if value & 0xF000 == 0x6000 {
             return Ok(Self::SetVal {
                 register: ((value >> 8) & 0xF) as u8,
@@ -112,11 +109,21 @@ impl TryFrom<u16> for Instruction {
             });
         }
 
+        if value & 0xF000 == 0x8000 {
+            if let Some(instruction) = Self::parse_8xxx(value) {
+                return Ok(instruction);
+            }
+        }
+
         if value & 0xF00F == 0x9000 {
             return Ok(Self::NotEqual {
                 register_a: ((value >> 8) & 0xF) as u8,
                 register_b: ((value >> 4) & 0xF) as u8,
             });
+        }
+
+        if value & 0xF000 == 0xA000 {
+            return Ok(Self::SetIndexRegister(value & 0x0FFF));
         }
 
         if value & 0xF000 == 0xD000 {
@@ -140,6 +147,54 @@ impl TryFrom<u16> for Instruction {
 
         loop {}
         bail!("Failed to parse instruction: {:x}", value)
+    }
+}
+
+impl Instruction {
+    const fn parse_8xxx(value: u16) -> Option<Self> {
+        let instruction = ((value >> 12) & 0xF) as u8;
+        let register_a = ((value >> 8) & 0xF) as u8;
+        let register_b = ((value >> 4) & 0xF) as u8;
+
+        match instruction {
+            0 => Some(Self::Set {
+                register_a,
+                register_b,
+            }),
+            1 => Some(Self::Or {
+                register_a,
+                register_b,
+            }),
+            2 => Some(Self::And {
+                register_a,
+                register_b,
+            }),
+            3 => Some(Self::Xor {
+                register_a,
+                register_b,
+            }),
+            4 => Some(Self::Add {
+                register_a,
+                register_b,
+            }),
+            5 => Some(Self::SubtractRight {
+                register_a,
+                register_b,
+            }),
+            6 => Some(Self::ShiftLeft {
+                register_a,
+                register_b,
+            }),
+            7 => Some(Self::SubtractLeft {
+                register_a,
+                register_b,
+            }),
+            0xE => Some(Self::ShiftRight {
+                register_a,
+                register_b,
+            }),
+            _ => None,
+        }
     }
 }
 

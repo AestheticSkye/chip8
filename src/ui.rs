@@ -1,17 +1,21 @@
 use anyhow::Result;
-use minifb::{Key, Scale, Window, WindowOptions};
+use hex_color::HexColor;
+use minifb::{Key, Window, WindowOptions};
 
+use crate::arguments::scale::Scale;
 use crate::draw::Draw;
 use crate::{HEIGHT, WIDTH};
 
 pub struct Ui {
-    window: Window,
+    window:           Window,
+    foreground_color: HexColor,
+    background_color: HexColor,
 }
 
 impl Ui {
-    pub fn new() -> Self {
+    pub fn new(foreground_color: HexColor, background_color: HexColor, scale: Scale) -> Self {
         let options = WindowOptions {
-            scale: Scale::X8,
+            scale: scale.into(),
             ..WindowOptions::default()
         };
 
@@ -23,7 +27,11 @@ impl Ui {
         // Limit to max ~60 fps update rate
         window.limit_update_rate(Some(std::time::Duration::from_micros(16600)));
 
-        Self { window }
+        Self {
+            window,
+            foreground_color,
+            background_color,
+        }
     }
 }
 
@@ -36,15 +44,17 @@ impl Draw for Ui {
         let buffer = buffer
             .iter()
             .flatten()
-            .map(|val| if *val { u32::MAX } else { 0 })
+            .map(|val| {
+                if *val {
+                    self.foreground_color.to_u24()
+                } else {
+                    self.background_color.to_u24()
+                }
+            })
             .collect::<Vec<u32>>();
 
         self.window.update_with_buffer(&buffer, WIDTH, HEIGHT)?;
 
         Ok(())
     }
-}
-
-impl Default for Ui {
-    fn default() -> Self { Self::new() }
 }
