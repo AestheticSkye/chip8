@@ -28,15 +28,14 @@ impl Ui {
 }
 
 impl Draw for Ui {
-    type Error = anyhow::Error;
-
-    fn draw(&mut self, buffer: &[bool]) -> Result<()> {
+    fn draw(&mut self, buffer: &[[bool; 64]; 32]) -> Result<()> {
         if !self.window.is_open() || self.window.is_key_down(Key::Escape) {
             return Ok(());
         }
 
         let buffer = buffer
             .iter()
+            .flatten()
             .map(|val| if *val { u32::MAX } else { 0 })
             .collect::<Vec<u32>>();
 

@@ -17,9 +17,27 @@ pub enum Instruction {
     /// 5XY0
     IsEqual { register_a: u8, register_b: u8 },
     /// 6XNN
-    SetRegister { register: u8, value: u8 },
+    SetVal { register: u8, value: u8 },
     /// 7XNN
-    AddRegister { register: u8, value: u8 },
+    AddVal { register: u8, value: u8 },
+    /// 8XY0
+    Set { register_a: u8, register_b: u8 },
+    /// 8XY1
+    Or { register_a: u8, register_b: u8 },
+    /// 8XY2
+    And { register_a: u8, register_b: u8 },
+    /// 8XY3
+    Xor { register_a: u8, register_b: u8 },
+    /// 8XY4
+    Add { register_a: u8, register_b: u8 },
+    /// 8XY5
+    SubtractRight { register_a: u8, register_b: u8 },
+    /// 8XY6
+    ShiftLeft { register_a: u8, register_b: u8 },
+    /// 8XY7
+    SubtractLeft { register_a: u8, register_b: u8 },
+    /// 8XYE
+    ShiftRight { register_a: u8, register_b: u8 },
     /// 9XY0
     NotEqual { register_a: u8, register_b: u8 },
     /// ANNN
@@ -81,14 +99,14 @@ impl TryFrom<u16> for Instruction {
         }
 
         if value & 0xF000 == 0x6000 {
-            return Ok(Self::SetRegister {
+            return Ok(Self::SetVal {
                 register: ((value >> 8) & 0xF) as u8,
                 value:    (value & 0xFF) as u8,
             });
         }
 
         if value & 0xF000 == 0x7000 {
-            return Ok(Self::AddRegister {
+            return Ok(Self::AddVal {
                 register: ((value >> 8) & 0xF) as u8,
                 value:    (value & 0xFF) as u8,
             });
@@ -120,6 +138,7 @@ impl TryFrom<u16> for Instruction {
             });
         }
 
+        loop {}
         bail!("Failed to parse instruction: {:x}", value)
     }
 }
@@ -162,7 +181,7 @@ mod test {
 
         assert_eq!(
             instruction,
-            Instruction::SetRegister {
+            Instruction::SetVal {
                 register: 0x7,
                 value:    0x36,
             }

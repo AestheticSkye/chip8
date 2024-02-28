@@ -5,12 +5,14 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use anyhow::Result;
+use bitvec::order::Msb0;
+use bitvec::view::BitView;
 
 use self::font::FONT;
 use self::instruction::Instruction;
 use crate::draw::Draw;
 
-const BLANK_DISPLAY: [bool; 64 * 32] = [false; 64 * 32];
+const BLANK_DISPLAY: [[bool; 64]; 32] = [[false; 64]; 32];
 
 /// Original spec specified a 48 byte stack,
 /// Since the stack will be represented by u16s
@@ -20,7 +22,7 @@ const STACK_SIZE: usize = 24;
 #[derive(Debug, Clone, Copy)]
 pub struct Chip8 {
     memory:          [u8; 4096],
-    display:         [bool; 64 * 32],
+    display:         [[bool; 64]; 32],
     stack:           [u16; STACK_SIZE],
     stack_pointer:   usize,
     var_registers:   [u8; 16],
@@ -67,16 +69,16 @@ impl Chip8 {
             // Concatenate the two bytes together.
             let instruction = ((u16::from(bytes[0]) << 8) + u16::from(bytes[1])).try_into()?;
 
-            self.run_instruction(instruction, ui);
-
             self.program_counter += 2;
+
+            self.run_instruction(instruction, ui)?;
 
             // Run 700 instructions per second.
             sleep(Duration::from_micros(1428));
         }
     }
 
-    fn run_instruction(&mut self, instruction: Instruction, ui: &mut impl Draw) {
+    fn run_instruction(&mut self, instruction: Instruction, ui: &mut impl Draw) -> Result<()> {
         println!("{instruction:?}");
 
         match instruction {
@@ -112,13 +114,49 @@ impl Chip8 {
                     self.program_counter += 2;
                 }
             }
-            Instruction::SetRegister { register, value } => {
+            Instruction::SetVal { register, value } => {
                 self.var_registers[register as usize] = value;
             }
-            Instruction::AddRegister { register, value } => {
+            Instruction::AddVal { register, value } => {
                 self.var_registers[register as usize] =
                     self.var_registers[register as usize].wrapping_add(value);
             }
+            Instruction::Set {
+                register_a,
+                register_b,
+            } => todo!(),
+            Instruction::Or {
+                register_a,
+                register_b,
+            } => todo!(),
+            Instruction::And {
+                register_a,
+                register_b,
+            } => todo!(),
+            Instruction::Xor {
+                register_a,
+                register_b,
+            } => todo!(),
+            Instruction::Add {
+                register_a,
+                register_b,
+            } => todo!(),
+            Instruction::SubtractRight {
+                register_a,
+                register_b,
+            } => todo!(),
+            Instruction::ShiftLeft {
+                register_a,
+                register_b,
+            } => todo!(),
+            Instruction::SubtractLeft {
+                register_a,
+                register_b,
+            } => todo!(),
+            Instruction::ShiftRight {
+                register_a,
+                register_b,
+            } => todo!(),
             Instruction::NotEqual {
                 register_a,
                 register_b,
@@ -135,23 +173,44 @@ impl Chip8 {
                 y_coord_register,
                 sprite_height,
             } => {
-                let x_coord = self.var_registers[x_coord_register as usize];
-                let y_coord = self.var_registers[y_coord_register as usize];
+                let column = self.var_registers[x_coord_register as usize] % 64;
+                let row = self.var_registers[y_coord_register as usize] % 32;
 
-                let sprite_address = self.index_register;
-
-                self.draw(x_coord, y_coord, sprite_height, sprite_address, ui);
+                self.draw(column, row, sprite_height, ui)?;
             }
         }
+
+        Ok(())
     }
 
     fn draw(
         &mut self,
-        x_coord: u8,
-        y_coord: u8,
+        start_column: u8,
+        start_row: u8,
         sprite_height: u8,
-        sprite_address: u16,
         ui: &mut impl Draw,
-    ) {
+    ) -> Result<()> {
+        self.var_registers[0xF] = 0;
+
+        let sprite_address = self.index_register as usize;
+
+        for row in 0..sprite_height as usize {
+            let byte = self.memory[sprite_address + row];
+
+            for (column, bit) in byte.view_bits::<Msb0>().iter().enumerate() {
+                let display_bit =
+                    &mut self.display[start_row as usize + row][start_column as usize + column];
+
+                if *display_bit {
+                    self.var_registers[0xF] = 1;
+                }
+
+                *display_bit = *bit;
+            }
+        }
+
+        ui.draw(&self.display)?;
+
+        Ok(())
     }
 }
