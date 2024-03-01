@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use hex_color::HexColor;
 use minifb::{Key, Window, WindowOptions};
 
@@ -38,7 +38,7 @@ impl Ui {
 impl Draw for Ui {
     fn draw(&mut self, buffer: &[[bool; 64]; 32]) -> Result<()> {
         if !self.window.is_open() || self.window.is_key_down(Key::Escape) {
-            return Ok(());
+            bail!("Window closed");
         }
 
         let buffer = buffer

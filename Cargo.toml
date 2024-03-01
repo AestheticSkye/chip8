@@ -22,3 +22,4 @@ bitvec = "1.0.1"
 clap = { version = "4.5.1", features = ["derive"] }
 hex_color = "3.0.0"
 minifb = "0.25"
+rand = "0.8.5"

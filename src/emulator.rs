@@ -1,7 +1,7 @@
 mod font;
 mod instruction;
 
-use std::thread::sleep;
+use std::thread::{sleep, sleep_ms};
 use std::time::Duration;
 
 use anyhow::Result;
@@ -10,6 +10,7 @@ use bitvec::view::BitView;
 
 use self::font::FONT;
 use self::instruction::Instruction;
+use crate::arguments::compatability_mode::CompatabilityMode;
 use crate::draw::Draw;
 
 const BLANK_DISPLAY: [[bool; 64]; 32] = [[false; 64]; 32];
@@ -21,19 +22,20 @@ const STACK_SIZE: usize = 24;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Chip8 {
-    memory:          [u8; 4096],
-    display:         [[bool; 64]; 32],
-    stack:           [u16; STACK_SIZE],
-    stack_pointer:   usize,
-    var_registers:   [u8; 16],
-    program_counter: u16,
-    index_register:  u16,
-    delay_timer:     u8,
-    sound_timer:     u8,
+    memory:             [u8; 4096],
+    display:            [[bool; 64]; 32],
+    stack:              [u16; STACK_SIZE],
+    stack_pointer:      usize,
+    var_registers:      [u8; 16],
+    program_counter:    u16,
+    index_register:     u16,
+    delay_timer:        u8,
+    sound_timer:        u8,
+    compatibility_mode: CompatabilityMode,
 }
 
 impl Chip8 {
-    pub fn new(executable: &[u8]) -> Self {
+    pub fn new(executable: &[u8], compatibility_mode: CompatabilityMode) -> Self {
         let mut memory = [0; 4096];
 
         // Insert font into memory
@@ -56,6 +58,7 @@ impl Chip8 {
             delay_timer: 0,
             sound_timer: 0,
             var_registers: [0; 16],
+            compatibility_mode,
         }
     }
 
@@ -73,7 +76,7 @@ impl Chip8 {
 
             self.run_instruction(instruction, ui)?;
 
-            // ui.draw(&self.display)?;
+            ui.draw(&self.display)?;
 
             // Run 700 instructions per second.
             sleep(Duration::from_micros(1428));
@@ -108,11 +111,11 @@ impl Chip8 {
                 }
             }
             Instruction::IsEqual {
-                register_a,
-                register_b,
+                register_x,
+                register_y,
             } => {
-                if self.var_registers[register_a as usize]
-                    == self.var_registers[register_b as usize]
+                if self.var_registers[register_x as usize]
+                    == self.var_registers[register_y as usize]
                 {
                     self.program_counter += 2;
                 }
@@ -125,60 +128,107 @@ impl Chip8 {
                     self.var_registers[register as usize].wrapping_add(value);
             }
             Instruction::Set {
-                register_a,
-                register_b,
+                register_x,
+                register_y,
             } => {
-                self.var_registers[register_a as usize] = self.var_registers[register_b as usize];
+                self.var_registers[register_x as usize] = self.var_registers[register_y as usize];
             }
             Instruction::Or {
-                register_a,
-                register_b,
+                register_x,
+                register_y,
             } => {
-                self.var_registers[register_a as usize] |= self.var_registers[register_b as usize];
+                self.var_registers[register_x as usize] |= self.var_registers[register_y as usize];
             }
             Instruction::And {
-                register_a,
-                register_b,
+                register_x,
+                register_y,
             } => {
-                self.var_registers[register_a as usize] &= self.var_registers[register_b as usize];
+                self.var_registers[register_x as usize] &= self.var_registers[register_y as usize];
             }
             Instruction::Xor {
-                register_a,
-                register_b,
+                register_x,
+                register_y,
             } => {
-                self.var_registers[register_a as usize] ^= self.var_registers[register_b as usize];
+                self.var_registers[register_x as usize] ^= self.var_registers[register_y as usize];
             }
             Instruction::Add {
-                register_a,
-                register_b,
-            } => todo!(),
-            Instruction::SubtractRight {
-                register_a,
-                register_b,
-            } => todo!(),
-            Instruction::ShiftLeft {
-                register_a,
-                register_b,
-            } => todo!(),
-            Instruction::SubtractLeft {
-                register_a,
-                register_b,
-            } => todo!(),
-            Instruction::ShiftRight {
-                register_a,
-                register_b,
-            } => todo!(),
-            Instruction::NotEqual {
-                register_a,
-                register_b,
+                register_x,
+                register_y,
             } => {
-                if self.var_registers[register_a as usize]
-                    != self.var_registers[register_b as usize]
+                let y = u16::from(self.var_registers[register_y as usize]);
+                let register_x = &mut u16::from(self.var_registers[register_x as usize]);
+
+                if (*register_x + y) > 255 {
+                    self.var_registers[0xF] = 1;
+                }
+
+                *register_x = register_x.wrapping_add(y);
+            }
+            Instruction::SubtractRight {
+                register_x,
+                register_y,
+            } => {
+                let x = self.var_registers[register_x as usize];
+                let y = self.var_registers[register_y as usize];
+
+                self.var_registers[0xF] = u8::from(x > y);
+                self.var_registers[register_x as usize] = x.wrapping_sub(y);
+            }
+            Instruction::ShiftLeft {
+                register_x,
+                register_y,
+            } => {
+                let value = match self.compatibility_mode {
+                    CompatabilityMode::Cosmac => self.var_registers[register_y as usize],
+                    _ => self.var_registers[register_x as usize],
+                };
+
+                let shifted_value = value << 1;
+                let shifted_bit = value & 1;
+
+                self.var_registers[register_x as usize] = shifted_value;
+                self.var_registers[0xF] = shifted_bit;
+            }
+            Instruction::SubtractLeft {
+                register_x,
+                register_y,
+            } => {
+                let x = self.var_registers[register_x as usize];
+                let y = self.var_registers[register_y as usize];
+
+                self.var_registers[0xF] = u8::from(y > x);
+                self.var_registers[register_x as usize] = y.wrapping_sub(x);
+            }
+            Instruction::ShiftRight {
+                register_x,
+                register_y,
+            } => {
+                let value = match self.compatibility_mode {
+                    CompatabilityMode::Cosmac => self.var_registers[register_y as usize],
+                    _ => self.var_registers[register_x as usize],
+                };
+
+                let shifted_value = value >> 1;
+                let shifted_bit = value & 0b1000_0000;
+
+                self.var_registers[register_x as usize] = shifted_value;
+                self.var_registers[0xF] = shifted_bit;
+            }
+            Instruction::NotEqual {
+                register_x,
+                register_y,
+            } => {
+                if self.var_registers[register_x as usize]
+                    != self.var_registers[register_y as usize]
                 {
                     self.program_counter += 2;
                 }
             }
             Instruction::SetIndexRegister(value) => self.index_register = value,
+            Instruction::Rand { register, value } => {
+                let random_value = rand::random::<u8>() & value;
+                self.var_registers[register as usize] = random_value;
+            }
             Instruction::Display {
                 x_coord_register,
                 y_coord_register,
@@ -205,12 +255,19 @@ impl Chip8 {
 
         let sprite_address = self.index_register as usize;
 
-        for row in 0..sprite_height as usize {
+        'a: for row in 0..sprite_height as usize {
             let byte = self.memory[sprite_address + row];
 
             for (column, bit) in byte.view_bits::<Msb0>().iter().enumerate() {
-                let display_bit =
-                    &mut self.display[start_row as usize + row][start_column as usize + column];
+                let Some(display_row) = self.display.get_mut(start_row as usize + row) else {
+                    // Rest of sprite goes out of bounds, end drawing.
+                    break 'a;
+                };
+
+                let Some(display_bit) = display_row.get_mut(start_column as usize + column) else {
+                    // Current row goe out of bounds, go to next row.
+                    break;
+                };
 
                 if *display_bit {
                     self.var_registers[0xF] = 1;

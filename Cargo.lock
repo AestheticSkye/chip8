@@ -116,6 +116,7 @@ dependencies = [
  "clap",
  "hex_color",
  "minifb",
+ "rand",
 ]
 
 [[package]]

@@ -15,33 +15,35 @@ pub enum Instruction {
     /// 4XNN
     NotEqualVal { register: u8, value: u8 },
     /// 5XY0
-    IsEqual { register_a: u8, register_b: u8 },
+    IsEqual { register_x: u8, register_y: u8 },
     /// 6XNN
     SetVal { register: u8, value: u8 },
     /// 7XNN
     AddVal { register: u8, value: u8 },
     /// 8XY0
-    Set { register_a: u8, register_b: u8 },
+    Set { register_x: u8, register_y: u8 },
     /// 8XY1
-    Or { register_a: u8, register_b: u8 },
+    Or { register_x: u8, register_y: u8 },
     /// 8XY2
-    And { register_a: u8, register_b: u8 },
+    And { register_x: u8, register_y: u8 },
     /// 8XY3
-    Xor { register_a: u8, register_b: u8 },
+    Xor { register_x: u8, register_y: u8 },
     /// 8XY4
-    Add { register_a: u8, register_b: u8 },
+    Add { register_x: u8, register_y: u8 },
     /// 8XY5
-    SubtractRight { register_a: u8, register_b: u8 },
+    SubtractRight { register_x: u8, register_y: u8 },
     /// 8XY6
-    ShiftLeft { register_a: u8, register_b: u8 },
+    ShiftLeft { register_x: u8, register_y: u8 },
     /// 8XY7
-    SubtractLeft { register_a: u8, register_b: u8 },
+    SubtractLeft { register_x: u8, register_y: u8 },
     /// 8XYE
-    ShiftRight { register_a: u8, register_b: u8 },
+    ShiftRight { register_x: u8, register_y: u8 },
     /// 9XY0
-    NotEqual { register_a: u8, register_b: u8 },
+    NotEqual { register_x: u8, register_y: u8 },
     /// ANNN
     SetIndexRegister(u16),
+    /// CXNN
+    Rand { register: u8, value: u8 },
     /// DXYN
     Display {
         // X
@@ -90,8 +92,8 @@ impl TryFrom<u16> for Instruction {
 
         if value & 0xF00F == 0x5000 {
             return Ok(Self::IsEqual {
-                register_a: ((value >> 8) & 0xF) as u8,
-                register_b: ((value >> 4) & 0xF) as u8,
+                register_x: ((value >> 8) & 0xF) as u8,
+                register_y: ((value >> 4) & 0xF) as u8,
             });
         }
 
@@ -117,13 +119,20 @@ impl TryFrom<u16> for Instruction {
 
         if value & 0xF00F == 0x9000 {
             return Ok(Self::NotEqual {
-                register_a: ((value >> 8) & 0xF) as u8,
-                register_b: ((value >> 4) & 0xF) as u8,
+                register_x: ((value >> 8) & 0xF) as u8,
+                register_y: ((value >> 4) & 0xF) as u8,
             });
         }
 
         if value & 0xF000 == 0xA000 {
             return Ok(Self::SetIndexRegister(value & 0x0FFF));
+        }
+
+        if value & 0xF000 == 0xC000 {
+            return Ok(Self::Rand {
+                register: ((value >> 8) & 0xF) as u8,
+                value:    (value & 0xFF) as u8,
+            });
         }
 
         if value & 0xF000 == 0xD000 {
@@ -152,46 +161,46 @@ impl TryFrom<u16> for Instruction {
 
 impl Instruction {
     const fn parse_8xxx(value: u16) -> Option<Self> {
-        let instruction = ((value >> 12) & 0xF) as u8;
-        let register_a = ((value >> 8) & 0xF) as u8;
-        let register_b = ((value >> 4) & 0xF) as u8;
+        let instruction = ((value) & 0xF) as u8;
+        let register_x = ((value >> 8) & 0xF) as u8;
+        let register_y = ((value >> 4) & 0xF) as u8;
 
         match instruction {
             0 => Some(Self::Set {
-                register_a,
-                register_b,
+                register_x,
+                register_y,
             }),
             1 => Some(Self::Or {
-                register_a,
-                register_b,
+                register_x,
+                register_y,
             }),
             2 => Some(Self::And {
-                register_a,
-                register_b,
+                register_x,
+                register_y,
             }),
             3 => Some(Self::Xor {
-                register_a,
-                register_b,
+                register_x,
+                register_y,
             }),
             4 => Some(Self::Add {
-                register_a,
-                register_b,
+                register_x,
+                register_y,
             }),
             5 => Some(Self::SubtractRight {
-                register_a,
-                register_b,
+                register_x,
+                register_y,
             }),
             6 => Some(Self::ShiftLeft {
-                register_a,
-                register_b,
+                register_x,
+                register_y,
             }),
             7 => Some(Self::SubtractLeft {
-                register_a,
-                register_b,
+                register_x,
+                register_y,
             }),
             0xE => Some(Self::ShiftRight {
-                register_a,
-                register_b,
+                register_x,
+                register_y,
             }),
             _ => None,
         }
@@ -252,8 +261,23 @@ mod test {
         assert_eq!(
             instruction,
             Instruction::IsEqual {
-                register_a: 0x7,
-                register_b: 0x3,
+                register_x: 0x7,
+                register_y: 0x3,
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_8xxx() {
+        let val = 0x8760;
+
+        let instruction: Instruction = val.try_into().unwrap();
+
+        assert_eq!(
+            instruction,
+            Instruction::Set {
+                register_x: 0x7,
+                register_y: 0x6,
             }
         );
     }
